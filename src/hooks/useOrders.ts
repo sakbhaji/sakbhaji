@@ -9,18 +9,29 @@ const normalizeOrder = (order: any): Order => {
   let parsedItems = [];
   try {
     if (order?.items && typeof order.items === 'string') {
-      parsedItems = JSON.parse(order.items);
+      try {
+        parsedItems = JSON.parse(order.items);
+      } catch {
+        // Handle plain text items coming from n8n webhook (e.g. "- Gajar: 9000kg - ₹1,44,000")
+        parsedItems = order.items
+          .split('\n')
+          .map((line: string) => line.trim())
+          .filter((line: string) => line.length > 0 && !line.startsWith('Website:'))
+          .map((line: string) => ({ name: line.replace(/^- /, ''), qty: 1 }));
+      }
     } else if (order?.items && Array.isArray(order.items)) {
       parsedItems = order.items;
     }
   } catch (e) {
-    console.error('Failed to parse items for order', order?.id, e);
+    console.error('Failed to parse items for order', order?.id || order?.order_id, e);
   }
+  
+  const realId = order?.id || order?.order_id;
   
   return {
     ...order,
-    // Fallback ID to prevent React key errors or mass-updates if the DB column is missing/named incorrectly
-    id: order?.id || `missing-id-${Math.random().toString(36).substr(2, 9)}`,
+    // Map the database primary key (whether 'id' or 'order_id') to the UI's expected 'id' property
+    id: realId || `missing-id-${Math.random().toString(36).substring(2, 9)}`,
     items: Array.isArray(parsedItems) ? parsedItems : []
   } as Order;
 };
@@ -61,12 +72,16 @@ export function useOrders() {
             setOrders((prev) => [normalizeOrder(payload.new), ...prev]);
           } else if (payload.eventType === 'UPDATE') {
             setOrders((prev) =>
-              prev.map((order) =>
-                order.id === payload.new.id ? normalizeOrder(payload.new) : order
-              )
+              prev.map((order) => {
+                const targetId = payload.new.id || payload.new.order_id;
+                return order.id === targetId ? normalizeOrder(payload.new) : order;
+              })
             );
           } else if (payload.eventType === 'DELETE') {
-            setOrders((prev) => prev.filter((order) => order.id !== payload.old.id));
+            setOrders((prev) => prev.filter((order) => {
+              const targetId = payload.old.id || payload.old.order_id;
+              return order.id !== targetId;
+            }));
           }
         }
       )
@@ -124,11 +139,15 @@ export function useOrders() {
       )
     );
 
+    // Find if the database is using 'order_id' or 'id'
+    const targetOrder = orders.find(o => o.id === id) as any;
+    const targetColumn = targetOrder?.order_id ? 'order_id' : 'id';
+
     // Actual database update
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
-      .eq('id', id);
+      .eq(targetColumn, id);
 
     if (error) {
       console.error('Failed to update status in Supabase:', error);

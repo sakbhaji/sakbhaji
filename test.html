@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Supabase</title>
+</head>
+<body>
+    <div id="result">Loading...</div>
+    <script>
+        const url = "https://arzvbiiotuffnhlautlr.supabase.co/rest/v1/orders?select=*";
+        const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyenZiaWlvdHVmZm5obGF1dGxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDg1NzUsImV4cCI6MjA5MzkyNDU3NX0.sGMVCkX7aW86r2UEQE-EvN7n0mPtsNM8yD4JHgJYm_Y";
+        
+        fetch(url, {
+            headers: {
+                "apikey": key,
+                "Authorization": `Bearer ${key}`
+            }
+        })
+        .then(res => {
+            const status = res.status;
+            return res.text().then(text => ({ status, text }));
+        })
+        .then(({ status, text }) => {
+            document.getElementById("result").innerText = `Status: ${status}\nResponse: ${text}`;
+        })
+        .catch(err => {
+            document.getElementById("result").innerText = `Error: ${err.message}`;
+        });
+    </script>
+</body>
+</html>
