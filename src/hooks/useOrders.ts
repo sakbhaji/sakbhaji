@@ -39,21 +39,33 @@ const normalizeOrder = (order: any): Order => {
 export function useOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Fetch initial data and subscribe to real-time changes
   useEffect(() => {
     // 1. Fetch initial orders
     const fetchOrders = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      setConnectionStatus('connecting');
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching orders:', error);
-      } else if (data) {
-        setOrders(data.map(normalizeOrder));
+        if (error) {
+          console.error('Error fetching orders:', error);
+          setConnectionStatus('error');
+          setConnectionError(error.message);
+        } else if (data) {
+          setConnectionStatus('connected');
+          setOrders(data.map(normalizeOrder));
+        }
+      } catch (err: any) {
+        console.error('Network error fetching orders:', err);
+        setConnectionStatus('error');
+        setConnectionError(err.message || 'Failed to reach Supabase. Check your URL/Keys.');
       }
       setLoading(false);
     };
@@ -166,6 +178,8 @@ export function useOrders() {
     orders,
     kpis,
     loading,
+    connectionStatus,
+    connectionError,
     updateOrderStatus,
     addOrder
   };
